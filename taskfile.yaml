@@ -1,0 +1,16 @@
+version: '3'
+
+dotenv: ['./.env']
+
+vars:
+  EVENT_EMITTER_IMAGE_REPO: "{{.USER}}/stackstate-event-emitter"
+  VERSION: 0.0.5
+
+tasks:
+  docker-build:
+    cmds:
+      - docker build . -t {{.EVENT_EMITTER_IMAGE_REPO}}:{{.VERSION}}
+  docker-push:
+    cmds:
+      - echo $PASSWORD | docker login -u {{.USER}} --password-stdin
+      - docker push {{.EVENT_EMITTER_IMAGE_REPO}}:{{.VERSION}}

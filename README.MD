@@ -28,7 +28,7 @@ environment variable, thereby producing the ultimate value.
 | EVT_IDENTIFIER  | yes      | yes            |               | Identifier of topology target component in StackState               |
 | EVT_LINK_TITLE  | no       | yes            |               | Title for the link back to the source system                        |
 | EVT_LINK_URL    | no       | yes            |               | URL for the link back to the source system                          |
-| EVT_TAGS        | no       | no             |               | Comma separated list of tags                                        |
+| EVT_TAGS        | no       | yes            |               | Comma separated list of tags                                        |
 
 ### Example usage in Tekton Task
 

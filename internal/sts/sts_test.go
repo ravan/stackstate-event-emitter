@@ -21,7 +21,7 @@ func TestBindEvent(t *testing.T) {
 		"int":    1,
 	}}
 
-	payload := mustBindToPayload(env, &data, &conf.Evt)
+	payload := mustBindToEventPayload(env, &data, &conf.Evt)
 	assert.Equal(t, "1localhost", payload.InternalHostname)
 	assert.True(t, payload.CollectionTimestamp > 0)
 	assert.Equal(t, 1, len(payload.Events))
@@ -34,6 +34,7 @@ func TestBindEvent(t *testing.T) {
 	assert.Equal(t, "urn:host:test:/myString", e.Context.ElementIdentifiers[0])
 	assert.Equal(t, "mytitle", e.Context.SourceLinks[0].Title)
 	assert.Equal(t, "http://mylink", e.Context.SourceLinks[0].URL)
+	assert.Equal(t, "test", e.Tags[0])
 }
 
 func TestSubmitEvent(t *testing.T) {
@@ -42,6 +43,10 @@ func TestSubmitEvent(t *testing.T) {
 	gock.Observe(gock.DumpRequest)
 	gock.New(conf.ApiUrl).
 		Post(fmt.Sprintf("/%s", StackStateEndpoint)).
+		MatchParam("api_key", conf.ApiKey).
+		Reply(200)
+	gock.New(conf.ApiUrl).
+		Post(fmt.Sprintf("/%s", StackStateMetricEndpoint)).
 		MatchParam("api_key", conf.ApiKey).
 		Reply(200)
 	gock.InterceptClient(client)
@@ -67,7 +72,7 @@ func getConf() types.Configuration {
 			Identifier: "'urn:host:test:/' + body.string",
 			LinkTitle:  "'mytitle'",
 			LinkUrl:    "'http://mylink'",
-			Tags:       []string{"test"},
+			Tags:       []string{"'test'"},
 		},
 	}
 }

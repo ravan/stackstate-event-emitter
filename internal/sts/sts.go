@@ -25,7 +25,8 @@ var (
 
 const (
 	// StackStateEndpoint is the path of StackState's event API
-	StackStateEndpoint string = "receiver/stsAgent/intake"
+	StackStateEndpoint       string = "receiver/stsAgent/intake"
+	StackStateMetricEndpoint string = "receiver/stsAgent/api/v1/series"
 )
 
 func SubmitEvent(conf *types.Configuration, data *map[string]interface{}) (err error) {
@@ -41,10 +42,16 @@ func SubmitEvent(conf *types.Configuration, data *map[string]interface{}) (err e
 	}
 
 	var payload *stackstatePayload
-	payload = mustBindToPayload(env, data, &conf.Evt)
+	payload = mustBindToEventPayload(env, data, &conf.Evt)
 
 	err = sendEvent(conf.ApiUrl, conf.ApiKey, payload)
-	return err
+	if err != nil {
+		return err
+	}
+
+	sendMetric(conf.ApiUrl, conf.ApiKey, bindToMetricSeries(payload))
+
+	return nil
 }
 
 func sendEvent(apiUrl string, apiKey string, payload *stackstatePayload) error {
@@ -78,20 +85,93 @@ func sendEvent(apiUrl string, apiKey string, payload *stackstatePayload) error {
 	return nil
 }
 
-func mustBindToPayload(env *cel.Env, data *map[string]interface{}, evt *types.StackStateEvent) *stackstatePayload {
+func sendMetric(apiUrl string, apiKey string, payload *MetricSeries) {
+	apiUrl, _ = strings.CutSuffix(apiUrl, "/")
+	agentEndpoint := fmt.Sprintf("%s/%s?api_key=%s", apiUrl, StackStateMetricEndpoint, apiKey)
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		slog.Error("Failed to marshal payload. Metric not sent.", slog.Any("error", err))
+		return
+	}
+	resp, err := client.Post(agentEndpoint, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		slog.Error("Failed to post payload. Metric not sent.", slog.Any("error", err))
+		return
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			slog.Error("Unexpected error.", slog.Any("error", err))
+		}
+	}(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		slog.Error("Failed to post metric payload.", slog.String("payload", string(body)),
+			slog.Int("status", resp.StatusCode),
+			slog.String("response", string(b)))
+		return
+	} else {
+		slog.Info("Sent metric.", slog.String("metric", string(body)))
+	}
+}
+
+func bindToMetricSeries(payload *stackstatePayload) *MetricSeries {
+	var tags []string
+	ep := payload.Events["emitter_event"][0]
+	for _, t := range ep.Tags {
+		if strings.Contains(t, ":") {
+			tags = append(tags, t)
+		}
+	}
+	tags = append(tags, fmt.Sprintf("event_type:%s", ep.EventType))
+	identifier := ep.Context.ElementIdentifiers[0]
+	tags = append(tags, fmt.Sprintf("identifier:%s", identifier))
+
+
+	ms := MetricSeries{
+		Series: []Metric{
+			{
+				Points: []Point{
+					{
+						Timestamp: payload.CollectionTimestamp,
+						Value:     1,
+					},
+				},
+				Tags:           tags,
+				Host:           identifier,
+				Type:           "gauge",
+				Interval:       0,
+				SourceTypeName: ep.SourceTypeName,
+			},
+		},
+	}
+	return &ms
+}
+
+func mustBindToEventPayload(env *cel.Env, data *map[string]interface{}, evt *types.StackStateEvent) *stackstatePayload {
 	payload := emptyPayload()
-	payload.CollectionTimestamp = time.Now().UTC().Unix()
+	payload.CollectionTimestamp = time.Now().Unix()
 	payload.InternalHostname = mustEvalString(evt.OriginHost, env, data)
 	payload.InternalHostname = mustEvalString(evt.OriginHost, env, data)
 	ep := eventPayload{}
-
 	ep.Context = eventContext{}
-
+	ep.Timestamp = time.Now().Unix()
 	ep.EventType = mustEvalString(evt.Type, env, data)
 	ep.Title = mustEvalString(evt.Title, env, data)
 	ep.Text = mustEvalString(evt.Text, env, data)
 	ep.SourceTypeName = evt.Source
+
 	ep.Tags = evt.Tags
+	if len(evt.Tags) > 0 {
+		ep.Tags = []string{}
+		for _, tag := range evt.Tags {
+			ep.Tags = append(ep.Tags, mustEvalString(tag, env, data))
+		}
+	}
+
 	ep.Context.Category = mustEvalString(evt.Category, env, data)
 	ep.Context.Source = evt.Source
 	identifier := mustEvalString(evt.Identifier, env, data)
@@ -115,6 +195,7 @@ func mustBindToPayload(env *cel.Env, data *map[string]interface{}, evt *types.St
 }
 
 func mustEvalString(s string, env *cel.Env, data *map[string]interface{}) string {
+	s = strings.TrimSpace(s)
 	if s == "''" || s == "" {
 		return ""
 	}
@@ -198,12 +279,9 @@ type eventLink struct {
 	URL   string `json:"url"`
 }
 
-type metrics struct{}
-
 type serviceChecks struct{}
-
 type health struct{}
-
+type metrics struct{}
 type topology struct{}
 
 func emptyPayload() *stackstatePayload {
@@ -214,4 +292,29 @@ func emptyPayload() *stackstatePayload {
 		Health:        []health{},
 		Topologies:    []topology{},
 	}
+}
+
+type MetricSeries struct {
+	Series []Metric `json:"series"`
+}
+
+type Metric struct {
+	Points         []Point  `json:"points"`
+	Tags           []string `json:"tags"`
+	Host           string   `json:"host"`
+	Type           string   `json:"type"`
+	Interval       int      `json:"interval"`
+	SourceTypeName string   `json:"source_type_name"`
+}
+
+type Point struct {
+	Timestamp int64
+	Value     float32
+}
+
+func (t *Point) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&[]interface{}{
+		t.Timestamp,
+		t.Value,
+	})
 }

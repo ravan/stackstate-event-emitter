@@ -19,6 +19,7 @@ environment variable, thereby producing the ultimate value.
 | BODY            | no       | no             |               | Json data that other parameters can use in their CEL expression     |
 | API_URL         | yes      | no             |               | The url to the StackState server                                    |
 | API_KEY         | yes      | no             |               | The api key used by the StackState server                           |
+| METRIC_NAME     | no       | yes            |               | If present, sends a metric to StackState about the event            |
 | EVT_ORIGIN_HOST | no       | yes            | localhost     | Event originates from host                                          |
 | EVT_SOURCE      | no       | no             | emitter       | Event source is the originating system                              |
 | EVT_CATEGORY    | no       | yes            | Alerts        | Validate values are Alerts, Activities, Changes, Deployments, Other |

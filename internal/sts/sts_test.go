@@ -60,8 +60,9 @@ func TestSubmitEvent(t *testing.T) {
 
 func getConf() types.Configuration {
 	return types.Configuration{
-		ApiKey: "test",
-		ApiUrl: "http://localhost",
+		ApiKey:     "test",
+		ApiUrl:     "http://localhost",
+		MetricName: "'test_metric'",
 		Evt: types.StackStateEvent{
 			OriginHost: "'localhost'",
 			Source:     "testsource",

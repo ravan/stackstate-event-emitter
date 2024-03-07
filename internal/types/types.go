@@ -4,6 +4,7 @@ type Configuration struct {
 	ApiUrl string          `mapstructure:"api_url"`
 	ApiKey string          `mapstructure:"api_key"`
 	Evt    StackStateEvent `mapstructure:"evt"`
+	MetricName string       `mapstructure:"metric_name"`
 }
 
 type StackStateEvent struct {

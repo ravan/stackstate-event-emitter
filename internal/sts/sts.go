@@ -49,7 +49,10 @@ func SubmitEvent(conf *types.Configuration, data *map[string]interface{}) (err e
 		return err
 	}
 
-	sendMetric(conf.ApiUrl, conf.ApiKey, bindToMetricSeries(payload))
+	metric := mustEvalString(conf.MetricName, env, data)
+	if metric != "" {
+		sendMetric(conf.ApiUrl, conf.ApiKey, bindToMetricSeries(metric, payload))
+	}
 
 	return nil
 }
@@ -118,7 +121,7 @@ func sendMetric(apiUrl string, apiKey string, payload *MetricSeries) {
 	}
 }
 
-func bindToMetricSeries(payload *stackstatePayload) *MetricSeries {
+func bindToMetricSeries(name string, payload *stackstatePayload) *MetricSeries {
 	var tags []string
 	ep := payload.Events["emitter_event"][0]
 	for _, t := range ep.Tags {
@@ -130,10 +133,10 @@ func bindToMetricSeries(payload *stackstatePayload) *MetricSeries {
 	identifier := ep.Context.ElementIdentifiers[0]
 	tags = append(tags, fmt.Sprintf("identifier:%s", identifier))
 
-
 	ms := MetricSeries{
 		Series: []Metric{
 			{
+				Name: name,
 				Points: []Point{
 					{
 						Timestamp: payload.CollectionTimestamp,
@@ -299,6 +302,7 @@ type MetricSeries struct {
 }
 
 type Metric struct {
+	Name           string   `json:"metric"`
 	Points         []Point  `json:"points"`
 	Tags           []string `json:"tags"`
 	Host           string   `json:"host"`

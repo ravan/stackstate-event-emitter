@@ -12,6 +12,7 @@ func GetConfig() *types.Configuration {
 	v := viper.New()
 	v.SetDefault("api_url", "")
 	v.SetDefault("api_key", "")
+	v.SetDefault("metric_name", "")
 	v.SetDefault("evt.origin_host", "'localhost'")
 	v.SetDefault("evt.source", "emitter")
 	v.SetDefault("evt.category", "'Alerts'")
